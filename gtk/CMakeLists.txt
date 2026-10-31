@@ -60,12 +60,16 @@ endforeach()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
 pkg_check_modules(GTK REQUIRED gtkmm-3.0 gthread-2.0 libpng)
-pkg_check_modules(XRANDR REQUIRED xrandr)
 
-find_library(X11 X11 REQUIRED)
-find_library(XEXT Xext REQUIRED)
-list(APPEND ARGS ${SDL2_CFLAGS} ${GTK_CFLAGS} ${XRANDR_CFLAGS})
-list(APPEND LIBS ${X11} ${XEXT} ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES} ${GTK_LIBRARIES} ${XRANDR_LIBRARIES})
+list(APPEND ARGS ${SDL2_CFLAGS} ${GTK_CFLAGS})
+list(APPEND LIBS ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES} ${GTK_LIBRARIES})
+if(NOT APPLE)
+    find_library(X11 X11 REQUIRED)
+    find_library(XEXT Xext REQUIRED)
+    pkg_check_modules(XRANDR REQUIRED xrandr)
+    list(APPEND ARGS ${XRANDR_CFLAGS})
+    list(APPEND LIBS ${X11} ${XEXT} ${XRANDR_LIBRARIES})
+endif()
 
 list(APPEND SOURCES src/gtk_display_driver_opengl.cpp
                     ../common/video/glx_context.cpp
@@ -84,6 +88,9 @@ list(APPEND SOURCES src/gtk_display_driver_opengl.cpp
                     ../emu-nwaccess/snes9x-nwaccess.cpp)
 list(APPEND INCLUDES ../external/glad/include)
 list(APPEND INCLUDES ../emu-nwaccess/)
+if(APPLE)
+    list(REMOVE_ITEM SOURCES src/gtk_display_driver_opengl.cpp ../common/video/glx_context.cpp ../external/glad/src/glx.c ../external/glad/src/egl.c)
+endif()
 
 if(USE_SLANG)
     add_subdirectory("../external/glslang-edited" "glslang" EXCLUDE_FROM_ALL)
