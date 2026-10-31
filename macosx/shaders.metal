@@ -47,7 +47,7 @@ fragmentShader(RasterizerData in [[stage_in]], texture2d<half> colorTexture [[ t
 {
 	int videoMode = int(*videoModePointer);
 	
-	if ( videoMode == 0)
+	if ( videoMode != 2)
 	{
 		constexpr sampler textureSampler (mag_filter::nearest, min_filter::nearest);
 		const half4 colorSample = colorTexture.sample(textureSampler, in.textureCoordinate);

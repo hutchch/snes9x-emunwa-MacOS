@@ -290,10 +290,106 @@ void S9xPutImage (int width, int height)
 }
 
 
+// CPU filters that scale the frame before it is uploaded. A scale of 1 means no filter.
+static int CPUFilterScale (void)
+{
+	switch (videoMode)
+	{
+		case VIDEOMODE_SUPEREAGLE:
+		case VIDEOMODE_2XSAI:
+		case VIDEOMODE_SUPER2XSAI:
+		case VIDEOMODE_EPX:
+		case VIDEOMODE_HQ2X:
+			return 2;
+		case VIDEOMODE_HQ3X:
+			return 3;
+		case VIDEOMODE_HQ4X:
+			return 4;
+		default:
+			return 1;
+	}
+}
+
+// The HQ filters work in RGB565; the 2xSaI, Super Eagle and EPX filters work in RGB555.
+static bool FilterIs565 (void)
+{
+	return videoMode == VIDEOMODE_HQ2X || videoMode == VIDEOMODE_HQ3X || videoMode == VIDEOMODE_HQ4X;
+}
+
+static void RunCPUFilter (uint8 *src, int srcRowBytes, uint8 *dst, int dstRowBytes, int width, int height)
+{
+	switch (videoMode)
+	{
+		case VIDEOMODE_SUPEREAGLE: S9xBlitPixSuperEagle16(src, srcRowBytes, dst, dstRowBytes, width, height); break;
+		case VIDEOMODE_2XSAI:      S9xBlitPix2xSaI16(src, srcRowBytes, dst, dstRowBytes, width, height);      break;
+		case VIDEOMODE_SUPER2XSAI: S9xBlitPixSuper2xSaI16(src, srcRowBytes, dst, dstRowBytes, width, height); break;
+		case VIDEOMODE_EPX:        S9xBlitPixEPX16(src, srcRowBytes, dst, dstRowBytes, width, height);        break;
+		case VIDEOMODE_HQ2X:       S9xBlitPixHQ2x16(src, srcRowBytes, dst, dstRowBytes, width, height);       break;
+		case VIDEOMODE_HQ3X:       S9xBlitPixHQ3x16(src, srcRowBytes, dst, dstRowBytes, width, height);       break;
+		case VIDEOMODE_HQ4X:       S9xBlitPixHQ4x16(src, srcRowBytes, dst, dstRowBytes, width, height);       break;
+		default:                   break;
+	}
+}
+
 static void S9xPutImageMetal (int width, int height, uint16 *buffer16)
 {
 	static uint8 *buffer = nil;
 	static int buffer_size = 0;
+
+	uint16 *source = buffer16;
+	int     sourcePitch = GFX.RealPPL;
+	int     scale = CPUFilterScale();
+
+	if (scale > 1)
+	{
+		static uint16 *filtered = nil;
+		static size_t  filteredBytes = 0;
+		size_t need = (size_t) width * scale * height * scale * sizeof(uint16);
+
+		if (filteredBytes < need)
+		{
+			filtered = (uint16 *) realloc(filtered, need);
+			filteredBytes = need;
+		}
+
+		uint8 *filterSrc = (uint8 *) buffer16;
+		int    filterSrcRowBytes = GFX.RealPPL * 2;
+
+		if (FilterIs565())
+		{
+			static uint16 *converted = nil;
+			static size_t  convertedBytes = 0;
+			size_t inBytes = (size_t) width * height * sizeof(uint16);
+
+			if (convertedBytes < inBytes)
+			{
+				converted = (uint16 *) realloc(converted, inBytes);
+				convertedBytes = inBytes;
+			}
+
+			for (int y = 0; y < height; y++)
+			{
+				for (int x = 0; x < width; x++)
+				{
+					uint16 p = buffer16[y * GFX.RealPPL + x];
+					unsigned int r = (p >> 10) & 31;
+					unsigned int g = (p >> 5) & 31;
+					unsigned int b = p & 31;
+					g = (g << 1) | (g >> 4);
+					converted[y * width + x] = (uint16) ((r << 11) | (g << 5) | b);
+				}
+			}
+
+			filterSrc = (uint8 *) converted;
+			filterSrcRowBytes = width * 2;
+		}
+
+		RunCPUFilter(filterSrc, filterSrcRowBytes, (uint8 *) filtered, width * scale * 2, width, height);
+		source = filtered;
+		sourcePitch = width * scale;
+		width *= scale;
+		height *= scale;
+	}
 
 	if (buffer_size != width * height * 4)
 	{
@@ -305,14 +401,25 @@ static void S9xPutImageMetal (int width, int height, uint16 *buffer16)
 	{
 		for (int x = 0; x < width; x++)
 		{
-			uint16 pixel = buffer16[y * GFX.RealPPL + x];
-			unsigned int red = (pixel & FIRST_COLOR_MASK_RGB555) >> 10;
-			unsigned int green = (pixel & SECOND_COLOR_MASK_RGB555) >> 5;
-			unsigned int blue = (pixel & THIRD_COLOR_MASK_RGB555);
+			uint16 pixel = source[y * sourcePitch + x];
+			unsigned int red, green, blue;
 
-			red = ( red * 527 + 23 ) >> 6;
-			green = ( green * 527 + 23 ) >> 6;
-			blue = ( blue * 527 + 23 ) >> 6;
+			if (scale > 1 && FilterIs565())
+			{
+				red   = ((((pixel >> 11) & 31) * 527) + 23) >> 6;
+				green = ((((pixel >> 5) & 63) * 259) + 33) >> 6;
+				blue  = ((((pixel) & 31) * 527) + 23) >> 6;
+			}
+			else
+			{
+				red = (pixel & FIRST_COLOR_MASK_RGB555) >> 10;
+				green = (pixel & SECOND_COLOR_MASK_RGB555) >> 5;
+				blue = (pixel & THIRD_COLOR_MASK_RGB555);
+
+				red = ( red * 527 + 23 ) >> 6;
+				green = ( green * 527 + 23 ) >> 6;
+				blue = ( blue * 527 + 23 ) >> 6;
+			}
 
 			int offset = (y * width + x) * 4;
 			buffer[offset++] = (uint8)red;
