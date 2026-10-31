@@ -188,12 +188,26 @@ static gpointer GThreadServerStart(gpointer)
     return NULL;
 }
 #endif
+#if defined(__APPLE__) && !defined(SNES9X_GTK)
+static void* PosixServerStart(void*)
+{
+    S9xNWAServerLoop(NULL);
+    return NULL;
+}
+#endif
 
 bool	S9xNWAccessStart()
 {
     if (NetworkAccessData.initalized == false)
         S9xNWAccessInit();
     S9xNWAccessInitData();
+#if defined(__APPLE__) && !defined(SNES9X_GTK)
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, PosixServerStart, NULL) != 0)
+        return false;
+    NetworkAccessData.thread = thread;
+    return true;
+#endif
 #ifdef __WIN32__
     uintptr_t thread;
     thread = _beginthread(S9xNWAServerLoop, 0, NULL);
@@ -212,6 +226,8 @@ bool	S9xNWAccessStop()
 #elif defined(SNES9X_GTK)
     g_thread_join(NetworkAccessData.thread);
     g_thread_unref(NetworkAccessData.thread);
+#elif defined(__APPLE__)
+    pthread_join(NetworkAccessData.thread, NULL);
 #endif
     return true;
 }
@@ -519,6 +535,7 @@ bool    EmuNWAccessBinaryBlockGotten(SOCKET socket, char* data, uint32_t size)
         return EmuNWAccessWriteToMemory(socket, data, size);
     if (gpsClient->current_command == bLOAD_STATE_FROM_NETWORK)
         return EmuNWAcessLoadNetworkState(socket, data, size);
+    return false;
 }
 
 static bool checkAGameIsLoaded(SOCKET socket)
@@ -993,6 +1010,7 @@ int64_t EmuNWAccessNetworkStateSave(SOCKET socket, char** args, int ac)
     NetworkAccessData.netStateDoneMutex = false;
     NetworkAccessData.netStateTriggerMutex = true;
     NetworkAccessData.netStateTriggerClient = socket;
+    return 0;
 }
 
 bool    EmuNWAcessLoadNetworkState(SOCKET socket, char* data, uint32_t size)

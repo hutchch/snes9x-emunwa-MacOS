@@ -79,6 +79,16 @@ static void print_socket_error(const char* msg)
 
 #include "generic_poll_server.h"
 
+bool NWA_AllowNetwork = false;
+
+static bool is_loopback_peer(const struct sockaddr_in6 *a)
+{
+    if (IN6_IS_ADDR_LOOPBACK(&a->sin6_addr))
+        return true;
+    return IN6_IS_ADDR_V4MAPPED(&a->sin6_addr) && a->sin6_addr.s6_addr[12] == 127;
+}
+
+
 static bool __send_hash_reply(SOCKET socket, bool end, unsigned int key_count, va_list list)
 {
     bool toret = true;
@@ -801,6 +811,11 @@ static bool generic_poll_server_start(int poll_timeout)
             {
                 print_socket_error("Error while accepting new client");
                 return false;
+            }
+            if (!NWA_AllowNetwork && !is_loopback_peer(&new_client))
+            {
+                close(new_socket);
+                continue;
             }
             if (add_to_clients(new_socket))
             {

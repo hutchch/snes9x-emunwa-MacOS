@@ -1,5 +1,7 @@
 #pragma once
 #include <atomic>
+#include <string>
+extern bool NWA_AllowNetwork;
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -13,6 +15,10 @@
     #include <glib.h>
     #include "gtk_s9xwindow.h"
     typedef  GThread* THREAD_TYPE;
+#endif
+#if defined(__APPLE__) && !defined(SNES9X_GTK)
+    #include <pthread.h>
+    typedef pthread_t THREAD_TYPE;
 #endif
 
 const int NWACCESS_START_PORT = 68500;
