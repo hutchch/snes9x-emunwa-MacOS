@@ -51,7 +51,7 @@ void SNES9X_Go (void)
 bool8 SNES9X_OpenCart (NSURL *inRef)
 {
 	NSURL		*cartRef;
-	const char	*filename = inRef.path.UTF8String;
+	const char	*filename = NULL;
 
 	if (cartOpen)
 	{
@@ -71,6 +71,8 @@ bool8 SNES9X_OpenCart (NSURL *inRef)
 	}
 	else
 		cartRef = inRef;
+
+	filename = cartRef.path.UTF8String;
 
 	spcFileCount = pngFileCount = 0;
 

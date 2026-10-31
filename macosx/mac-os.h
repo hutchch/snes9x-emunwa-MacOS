@@ -238,6 +238,15 @@ extern id<S9xInputDelegate> inputDelegate;
 
 - (void)setSuperFXClockSpeedPercent:(uint32_t)clockSpeed;
 - (void)setSoundInterpolationType:(int)type;
+- (NSURL *)chooseROMFile;
+- (void)setSoundPlaybackRate:(uint32_t)rate;
+- (uint32_t)soundPlaybackRate;
+- (void)setSoundBufferLength:(uint32_t)ms;
+- (void)setSoundVolume:(int)percent;
+- (void)setSoundSync:(BOOL)on;
+- (BOOL)soundSync;
+- (void)setDynamicRateControl:(BOOL)on;
+- (BOOL)dynamicRateControl;
 - (void)setCPUOverclockMode:(int)mode;
 
 - (void)setApplySpecificGameHacks:(BOOL)flag;

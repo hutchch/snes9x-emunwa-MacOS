@@ -12,7 +12,6 @@
 		3000A9D123418852007DC37F /* freeze_defrost.aiff in Resources */ = {isa = PBXBuildFile; fileRef = EA85C3560B4ECBD900F5F9C9 /* freeze_defrost.aiff */; };
 		302EEC9C22DAD0AB006D1502 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 302EEC9A22DAD0AB006D1502 /* AudioToolbox.framework */; };
 		302EEC9D22DAD0AB006D1502 /* AudioUnit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 302EEC9B22DAD0AB006D1502 /* AudioUnit.framework */; };
-		302EEC9F22DAD0B1006D1502 /* AGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 302EEC9E22DAD0B1006D1502 /* AGL.framework */; };
 		302EECA322DAD0C5006D1502 /* CoreImage.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 302EECA222DAD0C5006D1502 /* CoreImage.framework */; };
 		302EECA522DAD1B9006D1502 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 302EECA422DAD1B9006D1502 /* CoreAudio.framework */; };
 		3042F7E3232E9BDD00C03F5E /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3042F7E2232E9BDD00C03F5E /* Carbon.framework */; };
@@ -224,6 +223,7 @@
 		30D15DE822CE6BC9005BC352 /* ioapi.h in Headers */ = {isa = PBXBuildFile; fileRef = CFA518D60EBCB4CA008379F6 /* ioapi.h */; };
 		30D15DE922CE6BC9005BC352 /* unzip.h in Headers */ = {isa = PBXBuildFile; fileRef = CFA518DA0EBCB4D2008379F6 /* unzip.h */; };
 		30D15DEA22CE6FE1005BC352 /* mac-os.mm in Sources */ = {isa = PBXBuildFile; fileRef = EAE0E96604D582B700A80003 /* mac-os.mm */; };
+		C1016A90892D4B83875261CA /* snes9x-nwaccess.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FD42AC4F17114531B646ED1A /* snes9x-nwaccess.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++17"; }; };
 		30D709B0236F583600AAB7C3 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = EA3BEA980A28384E00A8FAE5 /* Localizable.strings */; };
 		30D709B1236F585100AAB7C3 /* Snes9x Help in Resources */ = {isa = PBXBuildFile; fileRef = EA3BEAA80A28386500A8FAE5 /* Snes9x Help */; };
 		30D709B2236F731B00AAB7C3 /* CART.icns in Resources */ = {isa = PBXBuildFile; fileRef = EA3D2F3C0A26083B00BDACCC /* CART.icns */; };
@@ -552,6 +552,7 @@
 		EAE061EB0526CCB900A80003 /* tile.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = tile.cpp; sourceTree = "<group>"; usesTabs = 1; };
 		EAE061EC0526CCB900A80003 /* tile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = tile.h; sourceTree = "<group>"; usesTabs = 1; };
 		EAE0E96604D582B700A80003 /* mac-os.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = "mac-os.mm"; sourceTree = "<group>"; };
+		FD42AC4F17114531B646ED1A /* snes9x-nwaccess.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = "../emu-nwaccess/snes9x-nwaccess.cpp"; sourceTree = "<group>"; };
 		EAECB67004AC7FCE00A80003 /* mac-cart.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = "mac-cart.mm"; sourceTree = "<group>"; };
 		EAECB67104AC7FCE00A80003 /* mac-cart.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = "mac-cart.h"; sourceTree = "<group>"; };
 		EAECB67204AC7FCE00A80003 /* mac-cheat.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = "mac-cheat.mm"; sourceTree = "<group>"; };
@@ -594,7 +595,6 @@
 				308092F72320B041006A2860 /* CoreGraphics.framework in Frameworks */,
 				302EECA522DAD1B9006D1502 /* CoreAudio.framework in Frameworks */,
 				302EECA322DAD0C5006D1502 /* CoreImage.framework in Frameworks */,
-				302EEC9F22DAD0B1006D1502 /* AGL.framework in Frameworks */,
 				302EEC9C22DAD0AB006D1502 /* AudioToolbox.framework in Frameworks */,
 				302EEC9D22DAD0AB006D1502 /* AudioUnit.framework in Frameworks */,
 				307C861D22D29DD2001B879E /* GLUT.framework in Frameworks */,
@@ -1042,6 +1042,7 @@
 				EAECB67F04AC7FCE00A80003 /* mac-musicbox.mm */,
 				EA1605500639E735004412AB /* mac-netplay.mm */,
 				EAE0E96604D582B700A80003 /* mac-os.mm */,
+				FD42AC4F17114531B646ED1A /* snes9x-nwaccess.cpp */,
 				EA942A50059B0F9000D7D022 /* mac-render.mm */,
 				EA2DBC0D0510ABE700A80003 /* mac-screenshot.mm */,
 				EAECB68604AC7FCE00A80003 /* mac-snes9x.mm */,
@@ -1342,6 +1343,7 @@
 				307C861922D29CAA001B879E /* mac-joypad.mm in Sources */,
 				307C860C22D23A5B001B879E /* mac-file.mm in Sources */,
 				30D15DEA22CE6FE1005BC352 /* mac-os.mm in Sources */,
+				C1016A90892D4B83875261CA /* snes9x-nwaccess.cpp in Sources */,
 				30D15CFC22CE6B74005BC352 /* sha256.cpp in Sources */,
 				30D15CFE22CE6B74005BC352 /* bml.cpp in Sources */,
 				30D15D2D22CE6B74005BC352 /* bsx.cpp in Sources */,

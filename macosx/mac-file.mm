@@ -91,7 +91,8 @@ static NSURL *FindSNESFolder (const char *folderName)
 	NSURL		*purl = nil;
 	NSString	*fstr = [NSString stringWithUTF8String:folderName];
 
-	purl = [[[NSBundle mainBundle] bundleURL].URLByDeletingLastPathComponent URLByAppendingPathComponent:fstr];
+	NSURL *support = [NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject;
+	purl = [[support URLByAppendingPathComponent:@"Snes9x"] URLByAppendingPathComponent:fstr];
 
 	if (![NSFileManager.defaultManager fileExistsAtPath:purl.path])
 	{
@@ -170,10 +171,11 @@ static NSURL *FindCustomFolder (const char *folderName)
 	if (![NSFileManager.defaultManager fileExistsAtPath:purl.path])
 	{
 		NSError *error = nil;
-		if ([NSFileManager.defaultManager createDirectoryAtPath:saveFolderPath withIntermediateDirectories:YES attributes:nil error:&error])
+		if ([NSFileManager.defaultManager createDirectoryAtPath:purl.path withIntermediateDirectories:YES attributes:nil error:&error])
 		{
 			AddFolderIcon(purl, folderName);
 		}
+		else
 		{
 			[[NSAlert alertWithError:error] runModal];
 			return nil;

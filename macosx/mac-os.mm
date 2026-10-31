@@ -26,6 +26,9 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #include <OpenGL/glext.h>
+#include "emu-nwaccess/snes9x-nwaccess.h"
+#include "mac-cart.h"
+#include "mac-audio.h"
 
 #import "snes9x.h"
 #import "memmap.h"
@@ -2515,9 +2518,68 @@ static void ChangeTurboRate (int d)
     S9xSetInfoString(msg);
 }
 
+static S9xEngine		*appEngine;
+
+@interface S9xAppQuitDelegate : NSObject <NSApplicationDelegate>
+@end
+
+@implementation S9xAppQuitDelegate
+- (void)addNWAccessItem
+{
+	for (NSMenuItem *top in [NSApp mainMenu].itemArray)
+	{
+		if (![top.title isEqualToString:@"Emulation"] && ![top.submenu.title isEqualToString:@"Emulation"])
+			continue;
+		NSMenu *menu = top.submenu;
+		NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:@"Enable Network Access" action:@selector(toggleNWAccess:) keyEquivalent:@""];
+		item.target = self;
+		item.state = Settings.NWAccess ? NSControlStateValueOn : NSControlStateValueOff;
+		[menu addItem:[NSMenuItem separatorItem]];
+		[menu addItem:item];
+		NSMenuItem *net = [[NSMenuItem alloc] initWithTitle:@"Act as Server on Network" action:@selector(toggleNetworkAccess:) keyEquivalent:@""];
+		net.target = self;
+		net.state = NWA_AllowNetwork ? NSControlStateValueOn : NSControlStateValueOff;
+		[menu addItem:net];
+		return;
+	}
+}
+
+- (void)toggleNetworkAccess:(NSMenuItem *)item
+{
+	NWA_AllowNetwork = !NWA_AllowNetwork;
+	if (Settings.NWAccess)
+	{
+		S9xNWAccessStop();
+		S9xNWAccessStart();
+	}
+	item.state = NWA_AllowNetwork ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (void)toggleNWAccess:(NSMenuItem *)item
+{
+	if (Settings.NWAccess)
+	{
+		S9xNWAccessStop();
+		Settings.NWAccess = false;
+	}
+	else
+	{
+		Settings.NWAccess = S9xNWAccessStart();
+	}
+	item.state = Settings.NWAccess ? NSControlStateValueOn : NSControlStateValueOff;
+}
+@end
+
+static S9xAppQuitDelegate	*quitDelegate;
+
 static void Initialize (void)
 {
 	bzero(&Settings, sizeof(Settings));
+	Settings.NWAccess = true;
+	quitDelegate = [[S9xAppQuitDelegate alloc] init];
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[quitDelegate addNWAccessItem];
+	});
 	Settings.MouseMaster = true;
 	Settings.SuperScopeMaster = true;
 	Settings.JustifierMaster = true;
@@ -2587,10 +2649,14 @@ static void Initialize (void)
 
 	S9xSetControllerCrosshair(X_MOUSE1, 0, NULL, NULL);
 	S9xSetControllerCrosshair(X_MOUSE2, 0, NULL, NULL);
+	if (Settings.NWAccess)
+		S9xNWAccessStart();
 }
 
 static void Deinitialize (void)
 {
+	if (Settings.NWAccess)
+		S9xNWAccessStop();
 	deviceSetting = deviceSettingMaster;
 
 	ReleaseHID();
@@ -2927,13 +2993,6 @@ void QuitWithFatalError ( NSString *message)
 				break;
 		}
 	}
-	else
-	{
-		pauseEmulation = true;
-		[self.emulationDelegate emulationPaused];
-
-		[s9xView updatePauseOverlay];
-	}
 }
 
 - (void)mouseUp:(NSEvent *)event
@@ -3104,6 +3163,17 @@ void QuitWithFatalError ( NSString *message)
 
 @end
 
+// Re-open the audio output with the current rate and buffer length while a game is running.
+static void RestartSoundIfRunning (S9xEngine *engine)
+{
+	if (![engine isRunning])
+		return;
+
+	MacStopSound();
+	S9xInitSound(0);
+	MacStartSound();
+}
+
 @implementation S9xEngine
 
 - (instancetype)init
@@ -3111,6 +3181,7 @@ void QuitWithFatalError ( NSString *message)
     if (self = [super init])
     {
         Initialize();
+		appEngine = self;
 		[self recreateS9xView];
     }
 
@@ -3327,7 +3398,7 @@ void QuitWithFatalError ( NSString *message)
 	running = false;
 	frzselecting = false;
 
-	while (!Settings.StopEmulation)
+	while (s9xthreadrunning && !Settings.StopEmulation)
 	{
 		usleep(Settings.FrameTime);
 	}
@@ -3362,7 +3433,7 @@ void QuitWithFatalError ( NSString *message)
 	running = false;
 	frzselecting = false;
 
-	while (!Settings.StopEmulation)
+	while (s9xthreadrunning && !Settings.StopEmulation)
 	{
 		usleep(Settings.FrameTime);
 	}
@@ -3422,6 +3493,53 @@ void QuitWithFatalError ( NSString *message)
 - (void)setSoundInterpolationType:(int)type
 {
 	Settings.InterpolationMethod = type;
+}
+
+- (NSURL *)chooseROMFile
+{
+	return NavOpenROMImage();
+}
+
+- (void)setSoundPlaybackRate:(uint32_t)rate
+{
+	Settings.SoundPlaybackRate = rate;
+	RestartSoundIfRunning(self);
+}
+
+- (uint32_t)soundPlaybackRate
+{
+	return Settings.SoundPlaybackRate;
+}
+
+- (void)setSoundBufferLength:(uint32_t)ms
+{
+	macSoundBuffer_ms = ms;
+	RestartSoundIfRunning(self);
+}
+
+- (void)setSoundVolume:(int)percent
+{
+	macSoundVolume = percent;
+}
+
+- (void)setSoundSync:(BOOL)on
+{
+	Settings.SoundSync = on;
+}
+
+- (BOOL)soundSync
+{
+	return Settings.SoundSync;
+}
+
+- (void)setDynamicRateControl:(BOOL)on
+{
+	Settings.DynamicRateControl = on;
+}
+
+- (BOOL)dynamicRateControl
+{
+	return Settings.DynamicRateControl;
 }
 
 - (void)setCPUOverclockMode:(int)mode
@@ -3580,3 +3698,13 @@ void QuitWithFatalError ( NSString *message)
 
 @implementation S9xWatchPoint
 @end
+
+void S9xSetPause (uint32 mask)
+{
+    pauseEmulation = true;
+}
+
+void S9xClearPause (uint32 mask)
+{
+    pauseEmulation = false;
+}

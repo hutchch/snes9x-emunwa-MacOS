@@ -77,51 +77,58 @@ static NSPopUpButton *gPopM, *gPopI, *gPopV, *gPopH;
 @end
 
 
+static NSArray *ROMFileExtensions (void)
+{
+    return @[@"sfc", @"smc", @"swc", @"fig", @"bs", @"zip", @"gz", @"7z"];
+}
+
+@interface ROMTypeFilter : NSObject
+@property (nonatomic, strong) NSOpenPanel *panel;
+- (void) typeChanged: (NSPopUpButton *) sender;
+@end
+
+@implementation ROMTypeFilter
+- (void) typeChanged: (NSPopUpButton *) sender
+{
+    self.panel.allowedFileTypes = (sender.indexOfSelectedItem == 0) ? ROMFileExtensions() : nil;
+}
+@end
+
 NSURL *NavOpenROMImage ()
 {
     NSOpenPanel *openPanel = [NSOpenPanel openPanel];
     openPanel.title = NSLocalizedString(@"OpenROMMes", @"Open");
     openPanel.allowsMultipleSelection = NO;
 
-    NSView				*view;
-    NSTextField			*txtM, *txtI, *txtV, *txtH;
-    NSPopUpButton		*popM, *popI, *popV, *popH;
-    NSArray				*aryM, *aryI, *aryV, *aryH;
+    NSView *view = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 433, 34)];
+    ROMTypeFilter *filter = [ROMTypeFilter new];
+    filter.panel = openPanel;
+    NSTextField *typeLabel = [NSTextField labelWithString: @"Show:"];
+    typeLabel.frame = NSMakeRect(5, 9, 84, 14);
+    typeLabel.alignment = NSTextAlignmentRight;
+    NSPopUpButton *typePopup = [[NSPopUpButton alloc] initWithFrame: NSMakeRect(91, 6, 160, 22) pullsDown: NO];
+    [typePopup addItemsWithTitles: @[@"SNES ROM Files", @"All Files"]];
+    typePopup.target = filter;
+    typePopup.action = @selector(typeChanged:);
+    [view addSubview: typeLabel];
+    [view addSubview: typePopup];
+    openPanel.allowedFileTypes = ROMFileExtensions();
+    openPanel.accessoryView = view;
+    openPanel.accessoryViewDisclosed = YES;
 
-    view = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 433, 52)];
+    NSString *romFolder = [NSUserDefaults.standardUserDefaults stringForKey:@"ROMFolder"];
+    if (romFolder)
+        openPanel.directoryURL = [NSURL fileURLWithPath:romFolder];
 
-    aryM = [NSArray arrayWithObjects: NSLocalizedString(@"OpenROM5", @""), @"---", NSLocalizedString(@"OpenROM6", @""), NSLocalizedString(@"OpenROM7", @""), nil];
-    aryI = [NSArray arrayWithObjects: NSLocalizedString(@"OpenROM5", @""), @"---", NSLocalizedString(@"OpenROMa", @""), NSLocalizedString(@"OpenROMb", @""), NSLocalizedString(@"OpenROMc", @""), NSLocalizedString(@"OpenROMd", @""), nil];
-    aryV = [NSArray arrayWithObjects: NSLocalizedString(@"OpenROM5", @""), @"---", NSLocalizedString(@"OpenROM8", @""), NSLocalizedString(@"OpenROM9", @""), nil];
-    aryH = [NSArray arrayWithObjects: NSLocalizedString(@"OpenROM5", @""), @"---", NSLocalizedString(@"OpenROMe", @""), NSLocalizedString(@"OpenROMf", @""), nil];
-
-    CocoaAddStatTextToView(view, @"OpenROM1",   5, 32,  84, 14, &txtM);
-    CocoaAddStatTextToView(view, @"OpenROM3", 214, 32,  96, 14, &txtI);
-    CocoaAddStatTextToView(view, @"OpenROM2",   5,  7,  84, 14, &txtV);
-    CocoaAddStatTextToView(view, @"OpenROM4", 214,  7,  96, 14, &txtH);
-    CocoaAddPopUpBtnToView(view, aryM,         91, 27, 116, 22, &popM);
-    CocoaAddPopUpBtnToView(view, aryI,        312, 27, 116, 22, &popI);
-    CocoaAddPopUpBtnToView(view, aryV,         91,  2, 116, 22, &popV);
-    CocoaAddPopUpBtnToView(view, aryH,        312,  2, 116, 22, &popH);
-
-    [txtM setAlignment: NSTextAlignmentRight];
-    [txtI setAlignment: NSTextAlignmentRight];
-    [txtV setAlignment: NSTextAlignmentRight];
-    [txtH setAlignment: NSTextAlignmentRight];
-
-    [popM selectItemAtIndex: romDetect       ];
-    [popI selectItemAtIndex: interleaveDetect];
-    [popV selectItemAtIndex: videoDetect     ];
-    [popH selectItemAtIndex: headerDetect    ];
-
-        NSModalResponse response = [openPanel runModal];
+    NSModalResponse response = [openPanel runModal];
 
     if ( response == NSModalResponseOK )
     {
-        romDetect        = [popM indexOfSelectedItem];
-        interleaveDetect = [popI indexOfSelectedItem];
-        videoDetect      = [popV indexOfSelectedItem];
-        headerDetect     = [popH indexOfSelectedItem];
+        // Detection options are no longer offered, so use automatic detection.
+        // videoDetect is left alone: it is the Video Timing setting.
+        romDetect        = 0;
+        interleaveDetect = 0;
+        headerDetect     = 0;
 
         return openPanel.URL;
     }

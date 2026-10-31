@@ -56,7 +56,6 @@ static void DisconnectAudioUnits (void);
 static void SaveEffectPresets (void);
 static void LoadEffectPresets (void);
 static void SetAudioUnitSoundFormat (void);
-static void SetAudioUnitVolume (void);
 static void StoreBufferFrameSize (void);
 static void ChangeBufferFrameSize (void);
 static void MacSamplesAvailableCallBack (void *);
@@ -109,7 +108,6 @@ void InitMacSound (void)
 
 
 	SetAudioUnitSoundFormat();
-	SetAudioUnitVolume();
 	StoreBufferFrameSize();
 	ChangeBufferFrameSize();
 
@@ -160,13 +158,6 @@ static void SetAudioUnitSoundFormat (void)
 	format.mBitsPerChannel   = Settings.SixteenBitSound ? 16 : 8;
 
 	err = AudioUnitSetProperty(aueffect ? cnvAU : outAU, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &format, sizeof(format));
-}
-
-static void SetAudioUnitVolume (void)
-{
-	OSStatus	err;
-
-	err = AudioUnitSetParameter(outAU, kAudioUnitParameterUnit_LinearGain, kAudioUnitScope_Output, 0, (float) macSoundVolume / 100.0f, 0);
 }
 
 static void StoreBufferFrameSize (void)
@@ -318,6 +309,12 @@ static OSStatus MacAURenderCallBack (void *inRefCon, AudioUnitRenderActionFlags 
 		{
 			recoverBufferUnderrun = false;
 			memcpy(ioData->mBuffers[0].mData, audioBuffer, samples*2);
+		if (Settings.SixteenBitSound && macSoundVolume != 100)
+		{
+			SInt16 *out = (SInt16 *) ioData->mBuffers[0].mData;
+			for (unsigned int i = 0; i < samples; i++)
+				out[i] = (SInt16) (out[i] * macSoundVolume / 100);
+		}
 			memmove(audioBuffer, audioBuffer+samples, (audioBufferSampleCount-samples)*2);
 			audioBufferSampleCount -= samples;
 			sem_post(soundSyncSemaphore);
@@ -468,7 +465,6 @@ bool8 S9xOpenSoundDevice (void)
 	err = AUGraphUninitialize(agraph);
 
 	SetAudioUnitSoundFormat();
-	SetAudioUnitVolume();
 	ChangeBufferFrameSize();
 
 	err = AUGraphInitialize(agraph);
