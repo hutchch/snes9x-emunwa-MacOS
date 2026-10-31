@@ -68,6 +68,29 @@ id<MTLTexture>  			metalTexture = nil;
 id<MTLCommandQueue>			metalCommandQueue = nil;
 id<MTLRenderPipelineState>	metalPipelineState = nil;
 
+static bool IsNTSCMode (void)
+{
+	return videoMode >= VIDEOMODE_NTSC_C && videoMode <= VIDEOMODE_NTSC_TV_M;
+}
+
+static const snes_ntsc_setup_t *NTSCSetupFor (int mode)
+{
+	switch (mode)
+	{
+		case VIDEOMODE_NTSC_S:
+		case VIDEOMODE_NTSC_TV_S:
+			return &snes_ntsc_svideo;
+		case VIDEOMODE_NTSC_R:
+		case VIDEOMODE_NTSC_TV_R:
+			return &snes_ntsc_rgb;
+		case VIDEOMODE_NTSC_M:
+		case VIDEOMODE_NTSC_TV_M:
+			return &snes_ntsc_monochrome;
+		default:
+			return &snes_ntsc_composite;
+	}
+}
+
 void InitGraphics (void)
 {
 	if (!S9xBlitFilterInit()      |
@@ -76,29 +99,7 @@ void InitGraphics (void)
 		!S9xBlitNTSCFilterInit())
 		QuitWithFatalError(@"render 02");
 
-	switch (videoMode)
-	{
-		default:
-		case VIDEOMODE_NTSC_C:
-		case VIDEOMODE_NTSC_TV_C:
-			S9xBlitNTSCFilterSet(&snes_ntsc_composite);
-			break; 
-
-		case VIDEOMODE_NTSC_S:
-		case VIDEOMODE_NTSC_TV_S:
-			S9xBlitNTSCFilterSet(&snes_ntsc_svideo);
-			break; 
-
-		case VIDEOMODE_NTSC_R:
-		case VIDEOMODE_NTSC_TV_R:
-			S9xBlitNTSCFilterSet(&snes_ntsc_rgb);
-			break; 
-
-		case VIDEOMODE_NTSC_M:
-		case VIDEOMODE_NTSC_TV_M:
-			S9xBlitNTSCFilterSet(&snes_ntsc_monochrome);
-			break;
-	}
+	S9xBlitNTSCFilterSet(NTSCSetupFor(videoMode));
 }
 
 void DeinitGraphics (void)
@@ -331,16 +332,103 @@ static void RunCPUFilter (uint8 *src, int srcRowBytes, uint8 *dst, int dstRowByt
 	}
 }
 
+// The framework can't see S9xPreferencesConstants.m, so these must match it.
+static NSString * const kStretchImagePref = @"StretchImage";
+static NSString * const kIntegerScalingPref = @"IntegerScaling";
+static NSString * const kVSyncPref = @"VSync";
+static NSString * const kBilinearFilteringPref = @"BilinearFiltering";
+
+// Half the size of the picture inside the view. Stretch fills the view; otherwise the picture keeps its
+// shape and, if Integer Scaling is on, uses a whole-number multiple of the game's resolution when it fits.
+static void S9xImageHalfSize (CGSize layer, int logicalW, int logicalH, float *halfW, float *halfH)
+{
+	if ([NSUserDefaults.standardUserDefaults boolForKey:kStretchImagePref])
+	{
+		*halfW = layer.width / 2.0;
+		*halfH = layer.height / 2.0;
+		return;
+	}
+
+	CGFloat fitW = 0, fitH = 0;
+	CGFloat sc = metalLayer.contentsScale;
+
+	if ([NSUserDefaults.standardUserDefaults boolForKey:kIntegerScalingPref])
+	{
+		CGFloat k = floor(fmin(layer.width * sc / logicalW, layer.height * sc / logicalH));
+		if (k >= 1)
+		{
+			fitW = logicalW * k / sc;
+			fitH = logicalH * k / sc;
+		}
+	}
+
+	if (fitW == 0)
+	{
+		CGFloat aspect = (CGFloat) logicalW / logicalH;
+		if (layer.width / layer.height > aspect)
+		{
+			fitH = layer.height;
+			fitW = fitH * aspect;
+		}
+		else
+		{
+			fitW = layer.width;
+			fitH = fitW / aspect;
+		}
+	}
+
+	*halfW = fitW / 2.0;
+	*halfH = fitH / 2.0;
+}
+
 static void S9xPutImageMetal (int width, int height, uint16 *buffer16)
 {
 	static uint8 *buffer = nil;
 	static int buffer_size = 0;
 
+	// The picture's shape before any filter or hires handling, so filters keep the same aspect ratio.
+	const int logicalW = width > 256 ? width / 2 : width;
+	const int logicalH = height > 240 ? height / 2 : height;
+
 	uint16 *source = buffer16;
 	int     sourcePitch = GFX.RealPPL;
 	int     scale = CPUFilterScale();
 
-	if (scale > 1)
+	if (IsNTSCMode())
+	{
+		static int     ntscSetupMode = -1;
+		static int     ntscPhase = 0;
+		static uint16 *ntscOut = nil;
+		static size_t  ntscOutBytes = 0;
+
+		// The TV modes add a dimmed scanline under each row, so the output is twice as tall.
+		const bool scanlines = videoMode >= VIDEOMODE_NTSC_TV_C;
+		const int  outW = SNES_NTSC_OUT_WIDTH(256);
+		const int  outH = scanlines ? height * 2 : height;
+		size_t need = (size_t) outW * outH * sizeof(uint16);
+
+		if (ntscSetupMode != videoMode)
+		{
+			S9xBlitNTSCFilterSet(NTSCSetupFor(videoMode));
+			ntscSetupMode = videoMode;
+		}
+
+		if (ntscOutBytes < need)
+		{
+			ntscOut = (uint16 *) realloc(ntscOut, need);
+			ntscOutBytes = need;
+		}
+
+		// The burst phase changes every frame, as in the libretro core, so colour artifacts shimmer like a real TV.
+		ntscPhase = (ntscPhase + 1) % 3;
+		S9xBlitNTSCFrame((uint8 *) buffer16, GFX.RealPPL * 2, (uint8 *) ntscOut, outW * 2, width, height, ntscPhase, scanlines);
+
+		source = ntscOut;
+		sourcePitch = outW;
+		width = outW;
+		height = outH;
+	}
+	else if (scale > 1)
 	{
 		static uint16 *filtered = nil;
 		static size_t  filteredBytes = 0;
@@ -429,6 +517,8 @@ static void S9xPutImageMetal (int width, int height, uint16 *buffer16)
 		}
 	}
 	
+	metalLayer.displaySyncEnabled = [NSUserDefaults.standardUserDefaults boolForKey:kVSyncPref];
+
 	CGSize layerSize = metalLayer.bounds.size;
 	
 	@autoreleasepool {
@@ -441,8 +531,8 @@ static void S9xPutImageMetal (int width, int height, uint16 *buffer16)
 		
 		[metalTexture replaceRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0 withBytes:buffer bytesPerRow:width * 4];
 		
-		float vWidth = layerSize.width / 2.0;
-		float vHeight = layerSize.height / 2.0;
+		float vWidth = 0, vHeight = 0;
+		S9xImageHalfSize(layerSize, logicalW, logicalH, &vWidth, &vHeight);
 		
 		const MetalVertex verticies[] =
 		{
@@ -457,7 +547,8 @@ static void S9xPutImageMetal (int width, int height, uint16 *buffer16)
 		};
 		
 		id<MTLBuffer> vertexBuffer = [metalDevice newBufferWithBytes:verticies length:sizeof(verticies) options:MTLResourceStorageModeShared];
-		id<MTLBuffer> fragmentBuffer = [metalDevice newBufferWithBytes:&videoMode length:sizeof(videoMode) options:MTLResourceStorageModeShared];
+		int shaderSettings[2] = { videoMode, [NSUserDefaults.standardUserDefaults boolForKey:kBilinearFilteringPref] };
+		id<MTLBuffer> fragmentBuffer = [metalDevice newBufferWithBytes:shaderSettings length:sizeof(shaderSettings) options:MTLResourceStorageModeShared];
 		
 		id<MTLCommandBuffer> commandBuffer = [metalCommandQueue commandBuffer];
 		commandBuffer.label = @"Snes9x command buffer";
